@@ -1,0 +1,56 @@
+# Windows App SDK NuGet packages (too large for git)
+WinRT/packages/
+
+# DotNet build artifacts
+DotNet.ahk/bin/
+DotNet.ahk/obj/
+DotNet.ahk/*.dll
+DotNet.ahk/*.pdb
+DotNet.ahk/.vs/
+
+# Build outputs
+*.exe
+*.dll
+*.pdb
+*.obj
+
+# IDE/Editor
+.vs/
+.vscode/
+*.suo
+*.user
+*.code-workspace
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*~
+
+# OS generated
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Test outputs
+test.ahk
+
+# Build artifacts
+WinRT/x64/
+WinRT/x86/
+WinRT/Debug/
+WinRT/Release/
+
+# Backup files
+*.bak
+
+# Claude Code
+.claude/
+
+# Environment files
+.env
+
+# Build output logs
+WinRT/build_output.txt
+WinRT/build-vs/
+WinRT/build/

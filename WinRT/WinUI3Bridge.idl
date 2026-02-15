@@ -1,0 +1,671 @@
+// ============================================================================
+// WinUI3Bridge.idl - Type Library Definition
+// ============================================================================
+// Defines COM interfaces for AutoHotkey interoperability.
+// Compile with: midl /tlb WinUI3Bridge.tlb WinUI3Bridge.idl
+// ============================================================================
+
+import "oaidl.idl";
+import "ocidl.idl";
+
+// ============================================================================
+// Library GUID
+// ============================================================================
+[
+    uuid(E8A9C4F1-3B2D-4A5E-9C7F-1D2E3F4A5B6C),
+    version(1.0),
+    helpstring("WinUI3Bridge Type Library 1.0")
+]
+library WinUI3BridgeLib
+{
+    importlib("stdole2.tlb");
+
+    // ========================================================================
+    // Forward declarations
+    // ========================================================================
+    interface IXamlHost;
+    interface IXamlElement;
+    interface IControlWrapper;
+
+    // ========================================================================
+    // Visibility Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0001-000000000001), v1_enum]
+    enum Visibility
+    {
+        Visible = 0,
+        Collapsed = 1
+    } Visibility;
+
+    // ========================================================================
+    // TextWrapping Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0002-000000000001), v1_enum]
+    enum TextWrapping
+    {
+        NoWrap = 0,
+        Wrap = 1,
+        WrapWholeWords = 2
+    } TextWrapping;
+
+    // ========================================================================
+    // TextAlignment Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0003-000000000001), v1_enum]
+    enum TextAlignment
+    {
+        TextAlignLeft = 0,
+        TextAlignCenter = 1,
+        TextAlignRight = 2,
+        TextAlignJustify = 3
+    } TextAlignment;
+
+    // ========================================================================
+    // SelectionMode Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0004-000000000001), v1_enum]
+    enum SelectionMode
+    {
+        SelectNone = 0,
+        SelectSingle = 1,
+        SelectMultiple = 2,
+        SelectExtended = 3
+    } SelectionMode;
+
+    // ========================================================================
+    // CheckState Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0005-000000000001), v1_enum]
+    enum CheckState
+    {
+        Unchecked = 0,
+        Checked = 1,
+        Indeterminate = 2
+    } CheckState;
+
+    // ========================================================================
+    // Orientation Enumeration
+    // ========================================================================
+    typedef [uuid(A1B2C3D4-0001-0001-0006-000000000001), v1_enum]
+    enum Orientation
+    {
+        Horizontal = 0,
+        Vertical = 1
+    } Orientation;
+
+    // ========================================================================
+    // IXamlHost Interface
+    // ========================================================================
+    // Main interface for hosting WinUI 3 XAML content.
+    [
+        object,
+        uuid(F1E2D3C4-B5A6-4978-8C9D-0A1B2C3D4E5F),
+        dual,
+        oleautomation,
+        nonextensible,
+        pointer_default(unique),
+        helpstring("IXamlHost Interface - Hosts WinUI 3 XAML content")
+    ]
+    interface IXamlHost : IDispatch
+    {
+        // Initialize the XAML island with a parent window handle
+        [id(1), helpstring("Initialize XAML host with parent window")]
+        HRESULT Initialize(
+            [in] LONG_PTR parentHwnd,
+            [out, retval] VARIANT_BOOL* pResult);
+
+        // Load XAML content from a string
+        [id(2), helpstring("Load XAML from string")]
+        HRESULT LoadXaml(
+            [in] BSTR xamlString,
+            [out, retval] IDispatch** ppRootElement);
+
+        // Get a named element from the visual tree
+        [id(3), helpstring("Get element by x:Name")]
+        HRESULT GetElement(
+            [in] BSTR name,
+            [out, retval] IDispatch** ppElement);
+
+        // Get a typed control wrapper
+        [id(4), helpstring("Get typed control wrapper by name")]
+        HRESULT GetControl(
+            [in] BSTR name,
+            [out, retval] IDispatch** ppControl);
+
+        // Set an event handler
+        [id(5), helpstring("Set event handler for element")]
+        HRESULT SetEventHandler(
+            [in] BSTR elementName,
+            [in] BSTR eventName,
+            [in] LONGLONG callbackPtr,
+            [out, retval] VARIANT_BOOL* pResult);
+
+        // Remove an event handler
+        [id(6), helpstring("Remove event handler from element")]
+        HRESULT RemoveEventHandler(
+            [in] BSTR elementName,
+            [in] BSTR eventName,
+            [out, retval] VARIANT_BOOL* pResult);
+
+        // Resize the XAML island
+        [id(7), helpstring("Resize XAML island to match parent or specific size")]
+        HRESULT Resize(
+            [in, optional, defaultvalue(0)] LONG width,
+            [in, optional, defaultvalue(0)] LONG height);
+
+        // Close and cleanup
+        [id(8), helpstring("Close and release resources")]
+        HRESULT Close();
+
+        // Properties
+        [id(9), propget, helpstring("Get island window handle")]
+        HRESULT Hwnd([out, retval] LONG_PTR* pHwnd);
+
+        [id(10), propget, helpstring("Get parent window handle")]
+        HRESULT ParentHwnd([out, retval] LONG_PTR* pHwnd);
+
+        [id(11), propget, helpstring("Check if initialized")]
+        HRESULT IsInitialized([out, retval] VARIANT_BOOL* pResult);
+
+        [id(12), propget, helpstring("Check if on UI thread")]
+        HRESULT HasThreadAccess([out, retval] VARIANT_BOOL* pResult);
+    };
+
+    // ========================================================================
+    // IXamlElement Interface
+    // ========================================================================
+    // Generic interface for XAML elements.
+    [
+        object,
+        uuid(A2B3C4D5-E6F7-4089-9A0B-1C2D3E4F5A6B),
+        dual,
+        oleautomation,
+        nonextensible,
+        pointer_default(unique),
+        helpstring("IXamlElement Interface - Generic XAML element wrapper")
+    ]
+    interface IXamlElement : IDispatch
+    {
+        // Read-only properties
+        [id(1), propget, helpstring("Get element name")]
+        HRESULT Name([out, retval] BSTR* pName);
+
+        [id(2), propget, helpstring("Get element class name")]
+        HRESULT ClassName([out, retval] BSTR* pClassName);
+
+        // Size properties
+        [id(3), propget, helpstring("Get width")]
+        HRESULT Width([out, retval] DOUBLE* pWidth);
+        [id(3), propput, helpstring("Set width")]
+        HRESULT Width([in] DOUBLE width);
+
+        [id(4), propget, helpstring("Get height")]
+        HRESULT Height([out, retval] DOUBLE* pHeight);
+        [id(4), propput, helpstring("Set height")]
+        HRESULT Height([in] DOUBLE height);
+
+        // State properties
+        [id(5), propget, helpstring("Get IsEnabled")]
+        HRESULT IsEnabled([out, retval] VARIANT_BOOL* pEnabled);
+        [id(5), propput, helpstring("Set IsEnabled")]
+        HRESULT IsEnabled([in] VARIANT_BOOL enabled);
+
+        [id(6), propget, helpstring("Get Visibility")]
+        HRESULT Visibility([out, retval] Visibility* pVisibility);
+        [id(6), propput, helpstring("Set Visibility")]
+        HRESULT Visibility([in] Visibility visibility);
+
+        // Content properties (for ContentControl-derived elements)
+        [id(7), propget, helpstring("Get content as string")]
+        HRESULT Content([out, retval] BSTR* pContent);
+        [id(7), propput, helpstring("Set content from string")]
+        HRESULT Content([in] BSTR content);
+
+        [id(8), propget, helpstring("Get text (for text controls)")]
+        HRESULT Text([out, retval] BSTR* pText);
+        [id(8), propput, helpstring("Set text")]
+        HRESULT Text([in] BSTR text);
+
+        // Methods
+        [id(9), helpstring("Focus the element")]
+        HRESULT Focus([out, retval] VARIANT_BOOL* pSuccess);
+
+        // Generic property access
+        [id(10), helpstring("Get property by name")]
+        HRESULT GetProperty(
+            [in] BSTR propertyName,
+            [out, retval] VARIANT* pValue);
+
+        [id(11), helpstring("Set property by name")]
+        HRESULT SetProperty(
+            [in] BSTR propertyName,
+            [in] VARIANT value);
+    };
+
+    // ========================================================================
+    // IControlWrapper Interface
+    // ========================================================================
+    // Base interface for typed control wrappers.
+    [
+        object,
+        uuid(B3C4D5E6-F7A8-4190-0B1C-2D3E4F5A6B7C),
+        dual,
+        oleautomation,
+        nonextensible,
+        pointer_default(unique),
+        helpstring("IControlWrapper Interface - Base for typed control wrappers")
+    ]
+    interface IControlWrapper : IDispatch
+    {
+        // Common properties
+        [id(1), propget, helpstring("Get element name")]
+        HRESULT Name([out, retval] BSTR* pName);
+
+        [id(2), propget, helpstring("Get control type name")]
+        HRESULT ControlType([out, retval] BSTR* pType);
+
+        [id(3), propget, helpstring("Check if wrapper is valid")]
+        HRESULT IsValid([out, retval] VARIANT_BOOL* pValid);
+
+        [id(4), propget, helpstring("Get width")]
+        HRESULT Width([out, retval] DOUBLE* pWidth);
+        [id(4), propput]
+        HRESULT Width([in] DOUBLE width);
+
+        [id(5), propget, helpstring("Get height")]
+        HRESULT Height([out, retval] DOUBLE* pHeight);
+        [id(5), propput]
+        HRESULT Height([in] DOUBLE height);
+
+        [id(6), propget, helpstring("Get IsEnabled")]
+        HRESULT IsEnabled([out, retval] VARIANT_BOOL* pEnabled);
+        [id(6), propput]
+        HRESULT IsEnabled([in] VARIANT_BOOL enabled);
+
+        [id(7), propget, helpstring("Get Visibility")]
+        HRESULT Visibility([out, retval] LONG* pVisibility);
+        [id(7), propput]
+        HRESULT Visibility([in] LONG visibility);
+
+        [id(8), helpstring("Focus the control")]
+        HRESULT Focus([out, retval] VARIANT_BOOL* pSuccess);
+    };
+
+    // ========================================================================
+    // IButtonWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(C4D5E6F7-A8B9-4201-1C2D-3E4F5A6B7C8D),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("IButtonWrapper Interface")
+    ]
+    interface IButtonWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get button content")]
+        HRESULT Content([out, retval] BSTR* pContent);
+        [id(100), propput]
+        HRESULT Content([in] BSTR content);
+
+        [id(101), propget, helpstring("Get IsPressed for toggle buttons")]
+        HRESULT IsPressed([out, retval] VARIANT_BOOL* pPressed);
+        [id(101), propput]
+        HRESULT IsPressed([in] VARIANT_BOOL pressed);
+
+        [id(102), helpstring("Programmatically click the button")]
+        HRESULT Click();
+    };
+
+    // ========================================================================
+    // ITextBoxWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(D5E6F7A8-B9C0-4312-2D3E-4F5A6B7C8D9E),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("ITextBoxWrapper Interface")
+    ]
+    interface ITextBoxWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get text content")]
+        HRESULT Text([out, retval] BSTR* pText);
+        [id(100), propput]
+        HRESULT Text([in] BSTR text);
+
+        [id(101), propget, helpstring("Get placeholder text")]
+        HRESULT PlaceholderText([out, retval] BSTR* pText);
+        [id(101), propput]
+        HRESULT PlaceholderText([in] BSTR text);
+
+        [id(102), propget, helpstring("Get selection start")]
+        HRESULT SelectionStart([out, retval] LONG* pStart);
+        [id(102), propput]
+        HRESULT SelectionStart([in] LONG start);
+
+        [id(103), propget, helpstring("Get selection length")]
+        HRESULT SelectionLength([out, retval] LONG* pLength);
+        [id(103), propput]
+        HRESULT SelectionLength([in] LONG length);
+
+        [id(104), propget, helpstring("Get selected text")]
+        HRESULT SelectedText([out, retval] BSTR* pText);
+
+        [id(105), propget, helpstring("Get IsReadOnly")]
+        HRESULT IsReadOnly([out, retval] VARIANT_BOOL* pReadOnly);
+        [id(105), propput]
+        HRESULT IsReadOnly([in] VARIANT_BOOL readOnly);
+
+        [id(106), propget, helpstring("Get MaxLength")]
+        HRESULT MaxLength([out, retval] LONG* pLength);
+        [id(106), propput]
+        HRESULT MaxLength([in] LONG length);
+
+        [id(107), helpstring("Select all text")]
+        HRESULT SelectAll();
+
+        [id(108), helpstring("Clear text")]
+        HRESULT Clear();
+    };
+
+    // ========================================================================
+    // ICheckBoxWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(E6F7A8B9-C0D1-4423-3E4F-5A6B7C8D9E0F),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("ICheckBoxWrapper Interface")
+    ]
+    interface ICheckBoxWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get content")]
+        HRESULT Content([out, retval] BSTR* pContent);
+        [id(100), propput]
+        HRESULT Content([in] BSTR content);
+
+        [id(101), propget, helpstring("Get check state (0=unchecked, 1=checked, 2=indeterminate)")]
+        HRESULT IsChecked([out, retval] CheckState* pState);
+        [id(101), propput]
+        HRESULT IsChecked([in] CheckState state);
+
+        [id(102), propget, helpstring("Get IsThreeState")]
+        HRESULT IsThreeState([out, retval] VARIANT_BOOL* pThreeState);
+        [id(102), propput]
+        HRESULT IsThreeState([in] VARIANT_BOOL threeState);
+    };
+
+    // ========================================================================
+    // IComboBoxWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(F7A8B9C0-D1E2-4534-4F5A-6B7C8D9E0F1A),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("IComboBoxWrapper Interface")
+    ]
+    interface IComboBoxWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get selected index")]
+        HRESULT SelectedIndex([out, retval] LONG* pIndex);
+        [id(100), propput]
+        HRESULT SelectedIndex([in] LONG index);
+
+        [id(101), propget, helpstring("Get selected text")]
+        HRESULT SelectedText([out, retval] BSTR* pText);
+
+        [id(102), propget, helpstring("Get item count")]
+        HRESULT ItemCount([out, retval] LONG* pCount);
+
+        [id(103), propget, helpstring("Get placeholder text")]
+        HRESULT PlaceholderText([out, retval] BSTR* pText);
+        [id(103), propput]
+        HRESULT PlaceholderText([in] BSTR text);
+
+        [id(104), propget, helpstring("Get IsEditable")]
+        HRESULT IsEditable([out, retval] VARIANT_BOOL* pEditable);
+        [id(104), propput]
+        HRESULT IsEditable([in] VARIANT_BOOL editable);
+
+        [id(105), helpstring("Add item")]
+        HRESULT AddItem([in] BSTR text);
+
+        [id(106), helpstring("Remove item at index")]
+        HRESULT RemoveAt([in] LONG index);
+
+        [id(107), helpstring("Clear all items")]
+        HRESULT Clear();
+
+        [id(108), helpstring("Get item at index")]
+        HRESULT GetAt([in] LONG index, [out, retval] BSTR* pText);
+    };
+
+    // ========================================================================
+    // ISliderWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(A8B9C0D1-E2F3-4645-5A6B-7C8D9E0F1A2B),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("ISliderWrapper Interface")
+    ]
+    interface ISliderWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get value")]
+        HRESULT Value([out, retval] DOUBLE* pValue);
+        [id(100), propput]
+        HRESULT Value([in] DOUBLE value);
+
+        [id(101), propget, helpstring("Get minimum")]
+        HRESULT Minimum([out, retval] DOUBLE* pMin);
+        [id(101), propput]
+        HRESULT Minimum([in] DOUBLE min);
+
+        [id(102), propget, helpstring("Get maximum")]
+        HRESULT Maximum([out, retval] DOUBLE* pMax);
+        [id(102), propput]
+        HRESULT Maximum([in] DOUBLE max);
+
+        [id(103), propget, helpstring("Get step frequency")]
+        HRESULT StepFrequency([out, retval] DOUBLE* pStep);
+        [id(103), propput]
+        HRESULT StepFrequency([in] DOUBLE step);
+
+        [id(104), propget, helpstring("Get orientation")]
+        HRESULT Orientation([out, retval] Orientation* pOrientation);
+        [id(104), propput]
+        HRESULT Orientation([in] Orientation orientation);
+    };
+
+    // ========================================================================
+    // IProgressWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(B9C0D1E2-F3A4-4756-6B7C-8D9E0F1A2B3C),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("IProgressWrapper Interface")
+    ]
+    interface IProgressWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get value")]
+        HRESULT Value([out, retval] DOUBLE* pValue);
+        [id(100), propput]
+        HRESULT Value([in] DOUBLE value);
+
+        [id(101), propget, helpstring("Get minimum")]
+        HRESULT Minimum([out, retval] DOUBLE* pMin);
+        [id(101), propput]
+        HRESULT Minimum([in] DOUBLE min);
+
+        [id(102), propget, helpstring("Get maximum")]
+        HRESULT Maximum([out, retval] DOUBLE* pMax);
+        [id(102), propput]
+        HRESULT Maximum([in] DOUBLE max);
+
+        [id(103), propget, helpstring("Get IsIndeterminate")]
+        HRESULT IsIndeterminate([out, retval] VARIANT_BOOL* pIndeterminate);
+        [id(103), propput]
+        HRESULT IsIndeterminate([in] VARIANT_BOOL indeterminate);
+
+        [id(104), propget, helpstring("Get ShowPaused")]
+        HRESULT ShowPaused([out, retval] VARIANT_BOOL* pPaused);
+        [id(104), propput]
+        HRESULT ShowPaused([in] VARIANT_BOOL paused);
+
+        [id(105), propget, helpstring("Get ShowError")]
+        HRESULT ShowError([out, retval] VARIANT_BOOL* pError);
+        [id(105), propput]
+        HRESULT ShowError([in] VARIANT_BOOL error);
+    };
+
+    // ========================================================================
+    // ITextBlockWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(C0D1E2F3-A4B5-4867-7C8D-9E0F1A2B3C4D),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("ITextBlockWrapper Interface")
+    ]
+    interface ITextBlockWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get text")]
+        HRESULT Text([out, retval] BSTR* pText);
+        [id(100), propput]
+        HRESULT Text([in] BSTR text);
+
+        [id(101), propget, helpstring("Get text wrapping")]
+        HRESULT TextWrapping([out, retval] TextWrapping* pWrapping);
+        [id(101), propput]
+        HRESULT TextWrapping([in] TextWrapping wrapping);
+
+        [id(102), propget, helpstring("Get text alignment")]
+        HRESULT TextAlignment([out, retval] TextAlignment* pAlignment);
+        [id(102), propput]
+        HRESULT TextAlignment([in] TextAlignment alignment);
+
+        [id(103), propget, helpstring("Get font size")]
+        HRESULT FontSize([out, retval] DOUBLE* pSize);
+        [id(103), propput]
+        HRESULT FontSize([in] DOUBLE size);
+
+        [id(104), propget, helpstring("Get max lines")]
+        HRESULT MaxLines([out, retval] LONG* pLines);
+        [id(104), propput]
+        HRESULT MaxLines([in] LONG lines);
+
+        [id(105), propget, helpstring("Get IsTextSelectionEnabled")]
+        HRESULT IsTextSelectionEnabled([out, retval] VARIANT_BOOL* pEnabled);
+        [id(105), propput]
+        HRESULT IsTextSelectionEnabled([in] VARIANT_BOOL enabled);
+    };
+
+    // ========================================================================
+    // IListViewWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(D1E2F3A4-B5C6-4978-8D9E-0F1A2B3C4D5E),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("IListViewWrapper Interface")
+    ]
+    interface IListViewWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get selected index")]
+        HRESULT SelectedIndex([out, retval] LONG* pIndex);
+        [id(100), propput]
+        HRESULT SelectedIndex([in] LONG index);
+
+        [id(101), propget, helpstring("Get item count")]
+        HRESULT ItemCount([out, retval] LONG* pCount);
+
+        [id(102), propget, helpstring("Get selection mode")]
+        HRESULT SelectionMode([out, retval] SelectionMode* pMode);
+        [id(102), propput]
+        HRESULT SelectionMode([in] SelectionMode mode);
+
+        [id(103), helpstring("Add item")]
+        HRESULT AddItem([in] BSTR text);
+
+        [id(104), helpstring("Remove item at index")]
+        HRESULT RemoveAt([in] LONG index);
+
+        [id(105), helpstring("Clear all items")]
+        HRESULT Clear();
+
+        [id(106), helpstring("Scroll item into view")]
+        HRESULT ScrollIntoView([in] LONG index);
+    };
+
+    // ========================================================================
+    // IToggleSwitchWrapper Interface
+    // ========================================================================
+    [
+        object,
+        uuid(E2F3A4B5-C6D7-4089-9E0F-1A2B3C4D5E6F),
+        dual,
+        oleautomation,
+        pointer_default(unique),
+        helpstring("IToggleSwitchWrapper Interface")
+    ]
+    interface IToggleSwitchWrapper : IControlWrapper
+    {
+        [id(100), propget, helpstring("Get IsOn")]
+        HRESULT IsOn([out, retval] VARIANT_BOOL* pOn);
+        [id(100), propput]
+        HRESULT IsOn([in] VARIANT_BOOL on);
+
+        [id(101), propget, helpstring("Get OnContent")]
+        HRESULT OnContent([out, retval] BSTR* pContent);
+        [id(101), propput]
+        HRESULT OnContent([in] BSTR content);
+
+        [id(102), propget, helpstring("Get OffContent")]
+        HRESULT OffContent([out, retval] BSTR* pContent);
+        [id(102), propput]
+        HRESULT OffContent([in] BSTR content);
+
+        [id(103), propget, helpstring("Get Header")]
+        HRESULT Header([out, retval] BSTR* pHeader);
+        [id(103), propput]
+        HRESULT Header([in] BSTR header);
+    };
+
+    // ========================================================================
+    // Coclass Definitions
+    // ========================================================================
+
+    [
+        uuid(11111111-2222-3333-4444-555555555555),
+        helpstring("XamlHost Class")
+    ]
+    coclass XamlHost
+    {
+        [default] interface IXamlHost;
+    };
+
+    [
+        uuid(22222222-3333-4444-5555-666666666666),
+        helpstring("XamlElement Class")
+    ]
+    coclass XamlElement
+    {
+        [default] interface IXamlElement;
+    };
+};
