@@ -57,4 +57,6 @@ xg.Show("w500 h350")
 
 ## Credits
 
-WinRT library based on [thqby/winrt.ahk](https://github.com/thqby/ahk2_lib) (Unlicense).
+- **[Lex](https://github.com/lexikos)** — Creator of [WinRT.ahk](https://github.com/lexikos/winrt.ahk), the WinRT interop layer this project builds on
+- **[thqby](https://github.com/thqby)** — Extended WinRT library ([ahk2_lib](https://github.com/thqby/ahk2_lib), Unlicense)
+- **[Florence](https://github.com/G33kDude)** — [DotNet.ahk](https://github.com/G33kDude/DotNet.ahk), the .NET CLR hosting library used by the C# bridge

@@ -1,7 +1,0 @@
-LIBRARY WinUI3Bridge
-EXPORTS
-    InitWinUI
-    UninitWinUI
-    IsWinUI3Available
-    CreateXamlHost
-    GetVersion
