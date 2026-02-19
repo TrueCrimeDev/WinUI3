@@ -304,6 +304,18 @@ XR := WinRT('Microsoft.UI.Xaml.Markup.XamlReader')
 nxGui.Content := XR.Load(xaml)
 try nxGui.Content.RequestedTheme := 2
 
+; Block all WM_KEYDOWN from reaching XAML (we handle input via InputHook).
+; Registered AFTER BasicXamlGui's handler so ours runs first (LIFO).
+; Returning 0 prevents ContentPreTranslateMessage from processing Tab/arrows.
+OnMessage(0x100, NexusBlockKeys)
+NexusBlockKeys(wParam, lParam, msg, hwnd) {
+    if !nexusVisible
+        return
+    root := DllCall("GetAncestor", "Ptr", hwnd, "UInt", 2, "Ptr")
+    if root = nxGui.hwnd
+        return 0  ; suppress — InputHook handles all keys
+}
+
 ; ============================================================================
 ; Card Builders (dynamic XAML)
 ; ============================================================================
@@ -657,9 +669,10 @@ ShowNexus() {
 HideNexus() {
     global nexusVisible, ih
     nexusVisible := false
-    if IsObject(ih)
+    if IsObject(ih) {
         ih.Stop()
         ih := ""
+    }
     SetTimer(BlinkCursor, 0)
     SetTimer(CheckFocus, 0)
     nxGui.Hide()
