@@ -37,24 +37,24 @@ OnExit((*) => DQC.ShutdownQueue())
 ; ============================================================================
 
 ; --- Palette (GitHub-dark inspired) ---
-BG_DEEP    := "#0D1117"    ; deepest layer
-BG_SURFACE := "#161B22"    ; card / panel surface
-BG_HOVER   := "#1C2333"    ; hover tint
-BG_ACTIVE  := "#21283B"    ; active / selected
-BORDER_SUB := "#30363D"    ; subtle borders
-TX_PRIMARY := "#E6EDF3"    ; main text
-TX_SECOND  := "#8B949E"    ; secondary text
-TX_TERTIA  := "#484F58"    ; tertiary / hints
-AC_BLUE    := "#58A6FF"
-AC_GREEN   := "#3FB950"
-AC_ORANGE  := "#D29922"
-AC_RED     := "#F85149"
-AC_PURPLE  := "#BC8CFF"
-AC_CYAN    := "#39D2C0"
+global BG_DEEP    := "#0D1117"    ; deepest layer
+global BG_SURFACE := "#161B22"    ; card / panel surface
+global BG_HOVER   := "#1C2333"    ; hover tint
+global BG_ACTIVE  := "#21283B"    ; active / selected
+global BORDER_SUB := "#30363D"    ; subtle borders
+global TX_PRIMARY := "#E6EDF3"    ; main text
+global TX_SECOND  := "#8B949E"    ; secondary text
+global TX_TERTIA  := "#484F58"    ; tertiary / hints
+global AC_BLUE    := "#58A6FF"
+global AC_GREEN   := "#3FB950"
+global AC_ORANGE  := "#D29922"
+global AC_RED     := "#F85149"
+global AC_PURPLE  := "#BC8CFF"
+global AC_CYAN    := "#39D2C0"
 
 ; --- Limits ---
-MAX_RESULTS := 9
-MAX_CLIP    := 25
+global MAX_RESULTS := 9
+global MAX_CLIP    := 25
 
 ; ============================================================================
 ; State
@@ -203,8 +203,7 @@ xaml := "
       xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
       Background='Transparent'>
 
-    <Border Background='#F2161B22' CornerRadius='14'
-            BorderBrush='#30363D' BorderThickness='1'>
+    <Border Background='#F2161B22'>
         <Grid RowDefinitions='Auto,Auto,*,Auto'>
 
             <!-- Branding strip -->
@@ -250,7 +249,6 @@ xaml := "
 
             <!-- Bottom bar with keycaps -->
             <Border Grid.Row='3' Background='#0D1117' Padding='14,8'
-                    CornerRadius='0,0,14,14'
                     BorderBrush='#20FFFFFF' BorderThickness='0,1,0,0'>
                 <Grid ColumnDefinitions='*,Auto'>
                     <StackPanel Orientation='Horizontal' Spacing='3'
@@ -669,6 +667,9 @@ HideNexus() {
 
 OnNxChar(ih, char) {
     if !WinActive("ahk_id " nxGui.hwnd)
+        return
+    ; Ignore control characters (Tab, Enter, Escape, Backspace, etc.)
+    if Ord(char) < 32
         return
     global searchText, selectedIdx
     searchText .= char
