@@ -190,7 +190,7 @@ NumPut('int', -1, 'int', -1, 'int', -1, 'int', -1, mg := Buffer(16))
 DllCall("dwmapi\DwmExtendFrameIntoClientArea", 'ptr', nxGui.hwnd, 'ptr', mg, 'hresult')
 DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 38, 'int*', 3, 'int', 4, 'hresult')
 DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 20, 'int*', 1, 'int', 4)
-DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 33, 'int*', 2, 'int', 4)
+DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 33, 'int*', 1, 'int', 4)  ; DWMWCP_DONOTROUND
 nxGui.BackColor := '0D1117'
 
 ; ============================================================================
