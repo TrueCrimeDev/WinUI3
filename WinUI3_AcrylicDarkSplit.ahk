@@ -325,5 +325,5 @@ try {
     xg['AcrylicBtn3'].add_Click((*) => ToolTip('Settings clicked'))
 }
 
-xg.Show("w900 h600")
+xg.Show("w900 h900")
 xg.NavigateFocus('First')
