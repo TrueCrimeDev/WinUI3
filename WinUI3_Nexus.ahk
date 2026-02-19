@@ -8,63 +8,82 @@
 ; ============================================================================
 ; WinUI3 Nexus — Universal Command Palette
 ; ============================================================================
-; A Raycast/Spotlight-style launcher built with AHK v2 + WinUI3 XAML Islands.
 ;
-; Features:
-;   App launcher ............ fuzzy search Start Menu programs
-;   Live calculator ......... auto-detects math (2+2, 15*3.5, etc.)
-;   Window switcher ......... > prefix or auto-match
-;   Clipboard history ....... @ prefix, last 25 entries, paste on Enter
-;   System commands ......... lock, sleep, shutdown, restart, recycle bin
-;   Web search .............. ? prefix opens default browser
-;   Color preview ........... type #RRGGBB to see swatch + copy
-;   URL opener .............. type https://... to open in browser
+;   Ctrl+Space ......... summon / dismiss
+;   Escape ............. clear query, then dismiss
+;   Tab ................ cycle modes (> @ ?)
+;   Up / Down .......... navigate results
+;   Enter .............. execute selected item
 ;
-; Hotkey: Alt+Space to summon/dismiss
-;         Escape to clear search or dismiss
-;         Tab to cycle modes (> @ ?)
-;         Up/Down to navigate, Enter to execute
+;   (no prefix) ........ search apps + commands + windows + auto-calc
+;   > .................. window switcher
+;   @ .................. clipboard history
+;   ? .................. web search
+;   #RRGGBB ............ color swatch + copy hex
+;   https://... ........ open URL
+;   math expr .......... live calculator
 
-; --- WinRT Init ---
-try {
-    UseWindowsAppRuntime('1.6')
-} catch as e {
-    MsgBox("Failed to load Windows App Runtime 1.6`n`n" e.Message, "Nexus", "Icon!")
+; --- WinRT bootstrap ---
+try UseWindowsAppRuntime('1.6')
+catch as e {
+    MsgBox("Windows App Runtime 1.6 required.`n" e.Message, "Nexus", "Icon!")
     ExitApp()
 }
 DQC := WinRT('Microsoft.UI.Dispatching.DispatcherQueueController').CreateOnCurrentThread()
 OnExit((*) => DQC.ShutdownQueue())
 
-; --- Constants ---
-MAX_RESULTS := 8
-MAX_CLIP := 25
-C_BLUE := "#4CC2FF", C_GREEN := "#2DB84D", C_ORANGE := "#FF8C00"
-C_RED := "#E84040", C_PURPLE := "#8B5CF6", C_YELLOW := "#FFB900"
+; ============================================================================
+; Design Tokens
+; ============================================================================
 
-; --- State ---
-global searchText := ""
-global selectedIdx := 0
+; --- Palette (GitHub-dark inspired) ---
+BG_DEEP    := "#0D1117"    ; deepest layer
+BG_SURFACE := "#161B22"    ; card / panel surface
+BG_HOVER   := "#1C2333"    ; hover tint
+BG_ACTIVE  := "#21283B"    ; active / selected
+BORDER_SUB := "#30363D"    ; subtle borders
+TX_PRIMARY := "#E6EDF3"    ; main text
+TX_SECOND  := "#8B949E"    ; secondary text
+TX_TERTIA  := "#484F58"    ; tertiary / hints
+AC_BLUE    := "#58A6FF"
+AC_GREEN   := "#3FB950"
+AC_ORANGE  := "#D29922"
+AC_RED     := "#F85149"
+AC_PURPLE  := "#BC8CFF"
+AC_CYAN    := "#39D2C0"
+
+; --- Limits ---
+MAX_RESULTS := 9
+MAX_CLIP    := 25
+
+; ============================================================================
+; State
+; ============================================================================
+
+global searchText     := ""
+global selectedIdx    := 0
 global currentResults := []
-global nexusVisible := false
-global cursorOn := true
-global appCache := []
-global clipHistory := []
-global nxGui := ""
-global ih := ""
-global XR := ""
+global nexusVisible   := false
+global cursorOn       := true
+global appCache       := []
+global clipHistory    := []
+global nxGui          := ""
+global ih             := ""
+global XR             := ""
 
-; --- System Commands ---
+; --- System commands ---
 global sysCommands := [
-    {name: "Lock Screen", desc: "Lock the workstation", icon: "Contact", color: C_RED, action: "lock"},
-    {name: "Sleep", desc: "Put computer to sleep", icon: "Clock", color: C_PURPLE, action: "sleep"},
-    {name: "Shutdown", desc: "Shut down the computer", icon: "Cancel", color: C_RED, action: "shutdown"},
-    {name: "Restart", desc: "Restart the computer", icon: "Refresh", color: C_ORANGE, action: "restart"},
-    {name: "Empty Recycle Bin", desc: "Permanently delete recycled files", icon: "Delete", color: C_RED, action: "recycle"},
-    {name: "Screenshot", desc: "Capture screen to clipboard", icon: "Camera", color: C_BLUE, action: "screenshot"},
-    {name: "Settings", desc: "Open Windows Settings", icon: "Setting", color: C_BLUE, action: "settings"},
-    {name: "Task Manager", desc: "Open Task Manager", icon: "Manage", color: C_GREEN, action: "taskmgr"},
-    {name: "File Explorer", desc: "Open File Explorer", icon: "Folder", color: C_YELLOW, action: "explorer"},
-    {name: "Notepad", desc: "Open Notepad", icon: "Edit", color: C_BLUE, action: "notepad"},
+    {name: "Lock Screen",      desc: "Lock workstation",           icon: "Contact",  color: AC_RED,    action: "lock"},
+    {name: "Sleep",            desc: "Suspend to RAM",             icon: "Clock",    color: AC_PURPLE, action: "sleep"},
+    {name: "Shutdown",         desc: "Power off",                  icon: "Cancel",   color: AC_RED,    action: "shutdown"},
+    {name: "Restart",          desc: "Reboot",                     icon: "Refresh",  color: AC_ORANGE, action: "restart"},
+    {name: "Empty Recycle Bin",desc: "Permanently delete files",   icon: "Delete",   color: AC_RED,    action: "recycle"},
+    {name: "Screenshot",       desc: "Capture screen to clipboard",icon: "Camera",   color: AC_BLUE,   action: "screenshot"},
+    {name: "Settings",         desc: "Open Windows Settings",      icon: "Setting",  color: AC_CYAN,   action: "settings"},
+    {name: "Task Manager",     desc: "Open Task Manager",          icon: "Manage",   color: AC_GREEN,  action: "taskmgr"},
+    {name: "File Explorer",    desc: "Open Explorer",              icon: "Folder",   color: AC_ORANGE, action: "explorer"},
+    {name: "Notepad",          desc: "Open Notepad",               icon: "Edit",     color: AC_BLUE,   action: "notepad"},
+    {name: "Run Dialog",       desc: "Open Run (Win+R)",           icon: "Play",     color: AC_GREEN,  action: "run"},
 ]
 
 ; ============================================================================
@@ -80,34 +99,29 @@ XmlEsc(text) {
     return text
 }
 
-Truncate(text, maxLen := 55) {
-    if StrLen(text) > maxLen
-        return SubStr(text, 1, maxLen - 3) "..."
-    return text
-}
+Trunc(text, n := 52) => StrLen(text) > n ? SubStr(text, 1, n - 1) Chr(0x2026) : text ; ellipsis
 
 MakeBrush(color) {
-    static cache := Map()
-    if cache.Has(color)
-        return cache[color]
+    static c := Map()
+    if c.Has(color)
+        return c[color]
     b := XR.Load('<SolidColorBrush xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Color="' color '"/>')
-    cache[color] := b
+    c[color] := b
     return b
 }
 
 FuzzyScore(needle, haystack) {
-    needle := StrLower(needle)
-    haystack := StrLower(haystack)
-    if SubStr(haystack, 1, StrLen(needle)) = needle
+    n := StrLower(needle), h := StrLower(haystack)
+    if SubStr(h, 1, StrLen(n)) = n
         return 200
-    if InStr(haystack, needle)
-        return 150 - StrLen(haystack)
-    ni := 1, score := 0
-    for c in StrSplit(haystack) {
-        if ni <= StrLen(needle) && c = SubStr(needle, ni, 1)
-            ni++, score += 10
+    if InStr(h, n)
+        return 150 - StrLen(h)
+    ni := 1, s := 0
+    for ch in StrSplit(h) {
+        if ni <= StrLen(n) && ch = SubStr(n, ni, 1)
+            ni++, s += 10
     }
-    return ni > StrLen(needle) ? score : 0
+    return ni > StrLen(n) ? s : 0
 }
 
 EvalMath(expr) {
@@ -120,17 +134,15 @@ EvalMath(expr) {
         doc.open()
         doc.write('<script>var r;try{r=eval("' jsExpr '")}catch(e){r="ERR"};document.title=String(r)</script>')
         doc.close()
-        result := doc.title
-        if result = "ERR" || result = "undefined" || result = "Infinity" || result = "NaN"
-            return ""
-        return result
+        r := doc.title
+        return (r = "ERR" || r = "undefined" || r = "Infinity" || r = "NaN") ? "" : r
     }
     return ""
 }
 
-IsMathExpr(text) => RegExMatch(text, "^\s*[\d\(]") && RegExMatch(text, "[\+\-\*\/\^\%]")
-IsHexColor(text) => RegExMatch(text, "^#[0-9A-Fa-f]{6}$")
-IsURL(text) => RegExMatch(text, "^https?://")
+IsMathExpr(t)  => RegExMatch(t, "^\s*[\d\(]") && RegExMatch(t, "[\+\-\*\/\^\%]")
+IsHexColor(t)  => RegExMatch(t, "^#[0-9A-Fa-f]{6}$")
+IsURL(t)       => RegExMatch(t, "^https?://")
 
 ; ============================================================================
 ; Data Sources
@@ -138,42 +150,33 @@ IsURL(text) => RegExMatch(text, "^https?://")
 
 ScanStartMenu() {
     apps := []
-    dirs := [
-        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs",
-        A_StartMenu "\Programs"
-    ]
-    for dir in dirs {
-        try {
-            Loop Files dir "\*.lnk", "R" {
-                name := RegExReplace(A_LoopFileName, "\.lnk$", "")
-                if InStr(name, "Uninstall") || InStr(name, "Help") || InStr(name, "README")
-                    continue
-                apps.Push({name: name, path: A_LoopFileFullPath})
-            }
+    for dir in ["C:\ProgramData\Microsoft\Windows\Start Menu\Programs", A_StartMenu "\Programs"] {
+        try Loop Files dir "\*.lnk", "R" {
+            name := RegExReplace(A_LoopFileName, "\.lnk$", "")
+            if RegExMatch(name, "i)Uninstall|Help|README|Website")
+                continue
+            apps.Push({name: name, path: A_LoopFileFullPath})
         }
     }
     return apps
 }
 
 GetOpenWindows() {
-    windows := []
-    myHwnd := nxGui.hwnd
+    wins := [], my := nxGui.hwnd
     for hwnd in WinGetList() {
         try {
-            title := WinGetTitle(hwnd)
-            if !title || title = "Program Manager"
+            t := WinGetTitle(hwnd)
+            if !t || t = "Program Manager"
                 continue
-            style := WinGetStyle(hwnd)
-            exStyle := WinGetExStyle(hwnd)
-            if !(style & 0x10000000) || (exStyle & 0x80)
+            s := WinGetStyle(hwnd), ex := WinGetExStyle(hwnd)
+            if !(s & 0x10000000) || (ex & 0x80)
                 continue
-            root := DllCall("GetAncestor", "Ptr", hwnd, "UInt", 2, "Ptr")
-            if root = myHwnd
+            if DllCall("GetAncestor", "Ptr", hwnd, "UInt", 2, "Ptr") = my
                 continue
-            windows.Push({title: title, hwnd: hwnd, class: WinGetClass(hwnd)})
+            wins.Push({title: t, hwnd: hwnd, class: WinGetClass(hwnd)})
         }
     }
-    return windows
+    return wins
 }
 
 ; ============================================================================
@@ -182,58 +185,116 @@ GetOpenWindows() {
 
 nxGui := BasicXamlGui('-Caption +AlwaysOnTop +ToolWindow', 'Nexus')
 
-; Acrylic + dark + rounded
-NumPut('int', -1, 'int', -1, 'int', -1, 'int', -1, m := Buffer(16))
-DllCall("dwmapi\DwmExtendFrameIntoClientArea", 'ptr', nxGui.hwnd, 'ptr', m, 'hresult')
+; DWM: acrylic, dark title, rounded corners
+NumPut('int', -1, 'int', -1, 'int', -1, 'int', -1, mg := Buffer(16))
+DllCall("dwmapi\DwmExtendFrameIntoClientArea", 'ptr', nxGui.hwnd, 'ptr', mg, 'hresult')
 DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 38, 'int*', 3, 'int', 4, 'hresult')
 DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 20, 'int*', 1, 'int', 4)
 DllCall("dwmapi\DwmSetWindowAttribute", 'ptr', nxGui.hwnd, 'uint', 33, 'int*', 2, 'int', 4)
-nxGui.BackColor := '0C0C1A'
+nxGui.BackColor := '0D1117'
+
+; ============================================================================
+; Main XAML
+; ============================================================================
 
 xaml := "
 (
 <Grid xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
       xmlns:x='http://schemas.microsoft.com/winfx/2006/xaml'
       Background='Transparent'>
-    <Border Background='#DD0C0C1A' CornerRadius='16'>
-        <Grid RowDefinitions='Auto,*,Auto'>
 
-            <!-- Search Bar -->
-            <Border Grid.Row='0' Background='#15FFFFFF' CornerRadius='12'
-                    Margin='16,16,16,8' Padding='14,12'
-                    BorderBrush='#304CC2FF' BorderThickness='1'>
+    <Border Background='#F2161B22' CornerRadius='14'
+            BorderBrush='#30363D' BorderThickness='1'>
+        <Grid RowDefinitions='Auto,Auto,*,Auto'>
+
+            <!-- Branding strip -->
+            <Border Grid.Row='0' Padding='18,11,18,0'>
                 <Grid ColumnDefinitions='Auto,*,Auto'>
-                    <SymbolIcon Symbol='Find' Foreground='#4CC2FF'
-                                Margin='0,0,12,0' VerticalAlignment='Center'/>
+                    <TextBlock Text='Nexus' FontSize='11' FontWeight='SemiBold'
+                               Foreground='#484F58' VerticalAlignment='Center'/>
+                    <Border Grid.Column='2' Background='#10FFFFFF' CornerRadius='5'
+                            Padding='6,2' VerticalAlignment='Center'>
+                        <TextBlock Text='Ctrl+Space' FontSize='9'
+                                   Foreground='#484F58' FontFamily='Cascadia Mono'/>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- Search bar -->
+            <Border Grid.Row='1' x:Name='SearchBorder' Background='#0D1117'
+                    CornerRadius='10' Margin='12,8,12,6' Padding='14,11'
+                    BorderBrush='#58A6FF' BorderThickness='1'>
+                <Grid ColumnDefinitions='Auto,*,Auto'>
+                    <SymbolIcon Symbol='Find' Foreground='#58A6FF'
+                                Margin='0,0,10,0' VerticalAlignment='Center'/>
                     <TextBlock x:Name='SearchText' Grid.Column='1'
-                               Text='Type to search...' FontSize='16'
-                               Foreground='#55FFFFFF' VerticalAlignment='Center'/>
-                    <Border x:Name='ModeBox' Grid.Column='2' Background='#204CC2FF'
-                            CornerRadius='6' Padding='8,3' Visibility='Collapsed'
-                            VerticalAlignment='Center'>
-                        <TextBlock x:Name='ModeTag' Text='' FontSize='10'
-                                   Foreground='#4CC2FF' FontWeight='SemiBold'/>
+                               Text='Search apps, commands, math...'
+                               FontSize='15' Foreground='#484F58'
+                               VerticalAlignment='Center'/>
+                    <Border x:Name='ModeBox' Grid.Column='2' CornerRadius='6'
+                            Padding='8,3' Visibility='Collapsed'
+                            VerticalAlignment='Center' Background='#1558A6FF'>
+                        <TextBlock x:Name='ModeTag' Text='' FontSize='9'
+                                   FontWeight='Bold' FontFamily='Cascadia Mono'
+                                   Foreground='#58A6FF'/>
                     </Border>
                 </Grid>
             </Border>
 
             <!-- Results -->
-            <ScrollViewer Grid.Row='1' VerticalScrollBarVisibility='Auto' Margin='8,0'>
-                <StackPanel x:Name='ResultsList' Spacing='2' Padding='8,4,8,8'/>
+            <ScrollViewer Grid.Row='2' VerticalScrollBarVisibility='Auto'
+                          Padding='0'>
+                <StackPanel x:Name='ResultsList' Spacing='1'
+                            Padding='10,2,10,6'/>
             </ScrollViewer>
 
-            <!-- Hint Bar -->
-            <Border Grid.Row='2' Padding='14,8' CornerRadius='0,0,16,16'>
+            <!-- Bottom bar with keycaps -->
+            <Border Grid.Row='3' Background='#0D1117' Padding='14,8'
+                    CornerRadius='0,0,14,14'
+                    BorderBrush='#20FFFFFF' BorderThickness='0,1,0,0'>
                 <Grid ColumnDefinitions='*,Auto'>
-                    <StackPanel Orientation='Horizontal' Spacing='12' VerticalAlignment='Center'>
-                        <TextBlock Text='↑↓ Navigate' FontSize='10' Foreground='#33FFFFFF'/>
-                        <TextBlock Text='⏎ Select' FontSize='10' Foreground='#33FFFFFF'/>
-                        <TextBlock Text='Tab Mode' FontSize='10' Foreground='#33FFFFFF'/>
-                        <TextBlock Text='Esc Close' FontSize='10' Foreground='#33FFFFFF'/>
+                    <StackPanel Orientation='Horizontal' Spacing='3'
+                                VerticalAlignment='Center'>
+                        <Border Background='#15FFFFFF' CornerRadius='4'
+                                Padding='5,2'>
+                            <TextBlock Text='↑↓' FontSize='10'
+                                       Foreground='#8B949E'
+                                       FontFamily='Cascadia Mono'/>
+                        </Border>
+                        <TextBlock Text='Navigate' FontSize='10'
+                                   Foreground='#484F58' Margin='2,0,10,0'
+                                   VerticalAlignment='Center'/>
+                        <Border Background='#15FFFFFF' CornerRadius='4'
+                                Padding='5,2'>
+                            <TextBlock Text='⏎' FontSize='10'
+                                       Foreground='#8B949E'/>
+                        </Border>
+                        <TextBlock Text='Open' FontSize='10'
+                                   Foreground='#484F58' Margin='2,0,10,0'
+                                   VerticalAlignment='Center'/>
+                        <Border Background='#15FFFFFF' CornerRadius='4'
+                                Padding='5,2'>
+                            <TextBlock Text='Tab' FontSize='9'
+                                       Foreground='#8B949E'
+                                       FontFamily='Cascadia Mono'/>
+                        </Border>
+                        <TextBlock Text='Mode' FontSize='10'
+                                   Foreground='#484F58' Margin='2,0,10,0'
+                                   VerticalAlignment='Center'/>
+                        <Border Background='#15FFFFFF' CornerRadius='4'
+                                Padding='5,2'>
+                            <TextBlock Text='Esc' FontSize='9'
+                                       Foreground='#8B949E'
+                                       FontFamily='Cascadia Mono'/>
+                        </Border>
+                        <TextBlock Text='Close' FontSize='10'
+                                   Foreground='#484F58' Margin='2,0,0,0'
+                                   VerticalAlignment='Center'/>
                     </StackPanel>
                     <TextBlock x:Name='ResultCount' Grid.Column='1' Text=''
-                               FontSize='10' Foreground='#33FFFFFF'
-                               VerticalAlignment='Center' FontFamily='Cascadia Mono'/>
+                               FontSize='10' Foreground='#484F58'
+                               FontFamily='Cascadia Mono'
+                               VerticalAlignment='Center'/>
                 </Grid>
             </Border>
         </Grid>
@@ -246,78 +307,119 @@ nxGui.Content := XR.Load(xaml)
 try nxGui.Content.RequestedTheme := 2
 
 ; ============================================================================
-; Dynamic Card Builders
+; Card Builders (dynamic XAML)
 ; ============================================================================
 
+; Standard result card — icon badge + title + desc + optional enter hint
 BuildCard(icon, title, desc, accent, isSel := false) {
-    bg := isSel ? "#20" SubStr(accent, 2) : "#08FFFFFF"
-    bdr := isSel ? accent : "Transparent"
-    bw := isSel ? "2,0,0,0" : "0"
-    t := XmlEsc(Truncate(title, 50))
-    d := XmlEsc(Truncate(desc, 60))
-    return XR.Load("
-    (
-    <Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
-            Background='" bg "' CornerRadius='8' Padding='12,9'
-            BorderBrush='" bdr "' BorderThickness='" bw "'>
-        <Grid ColumnDefinitions='Auto,*'>
-            <SymbolIcon Symbol='" icon "' Foreground='" accent "'
-                        Margin='0,0,12,0' VerticalAlignment='Center'/>
-            <StackPanel Grid.Column='1' VerticalAlignment='Center'>
-                <TextBlock Text='" t "' FontSize='13' Foreground='#EEFFFFFF'/>
-                <TextBlock Text='" d "' FontSize='10' Foreground='#55FFFFFF' Margin='0,1,0,0'/>
-            </StackPanel>
-        </Grid>
-    </Border>
-    )")
-}
+    ; Outer container
+    bg := isSel ? "#18" SubStr(accent, 2) : "Transparent"
+    bd := isSel ? "#30" SubStr(accent, 2) : "Transparent"
+    bw := isSel ? "1" : "0"
 
-BuildCalcCard(expr, result, isSel := false) {
-    bg := isSel ? "#20" SubStr(C_GREEN, 2) : "#08FFFFFF"
-    bdr := isSel ? C_GREEN : "Transparent"
-    bw := isSel ? "2,0,0,0" : "0"
+    ; Icon badge colors
+    ibg := "#15" SubStr(accent, 2)
+
+    t := XmlEsc(Trunc(title, 48))
+    d := XmlEsc(Trunc(desc, 58))
+
+    ; Enter hint visibility
+    eVis := isSel ? "Visible" : "Collapsed"
+
     return XR.Load("
     (
     <Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
-            Background='" bg "' CornerRadius='8' Padding='12,9'
-            BorderBrush='" bdr "' BorderThickness='" bw "'>
+            Background='" bg "' CornerRadius='10' Padding='10,7'
+            BorderBrush='" bd "' BorderThickness='" bw "'>
         <Grid ColumnDefinitions='Auto,*,Auto'>
-            <SymbolIcon Symbol='Calculator' Foreground='" C_GREEN "'
-                        Margin='0,0,12,0' VerticalAlignment='Center'/>
-            <StackPanel Grid.Column='1' VerticalAlignment='Center'>
-                <TextBlock Text='" XmlEsc(expr) "' FontSize='13' Foreground='#EEFFFFFF'/>
-                <TextBlock Text='Enter to copy result' FontSize='10'
-                           Foreground='#55FFFFFF' Margin='0,1,0,0'/>
+            <Border Width='32' Height='32' CornerRadius='8'
+                    Background='" ibg "' Margin='0,0,12,0'
+                    VerticalAlignment='Center'>
+                <SymbolIcon Symbol='" icon "' Foreground='" accent "' />
+            </Border>
+            <StackPanel Grid.Column='1' VerticalAlignment='Center' Spacing='1'>
+                <TextBlock Text='" t "' FontSize='13' Foreground='#E6EDF3'/>
+                <TextBlock Text='" d "' FontSize='11' Foreground='#8B949E'/>
             </StackPanel>
-            <TextBlock Grid.Column='2' Text='= " XmlEsc(String(result)) "' FontSize='22'
-                       FontWeight='Bold' Foreground='" C_GREEN "' VerticalAlignment='Center'
-                       FontFamily='Cascadia Mono' Margin='12,0,0,0'/>
+            <Border Grid.Column='2' Background='#12FFFFFF' CornerRadius='5'
+                    Padding='6,3' VerticalAlignment='Center'
+                    Visibility='" eVis "'>
+                <TextBlock Text='⏎' FontSize='11' Foreground='#8B949E'/>
+            </Border>
         </Grid>
     </Border>
     )")
 }
 
-BuildColorCard(hex, isSel := false) {
-    bg := isSel ? "#15FFFFFF" : "#08FFFFFF"
-    bdr := isSel ? hex : "Transparent"
-    bw := isSel ? "2,0,0,0" : "0"
+; Calculator card — shows big result on right
+BuildCalcCard(expr, result, isSel := false) {
+    bg := isSel ? "#18" SubStr(AC_GREEN, 2) : "Transparent"
+    bd := isSel ? "#30" SubStr(AC_GREEN, 2) : "Transparent"
+    bw := isSel ? "1" : "0"
+    ibg := "#15" SubStr(AC_GREEN, 2)
     return XR.Load("
     (
     <Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
-            Background='" bg "' CornerRadius='8' Padding='12,9'
-            BorderBrush='" bdr "' BorderThickness='" bw "'>
-        <Grid ColumnDefinitions='Auto,Auto,*'>
-            <Border Width='28' Height='28' CornerRadius='14' Background='" hex "'
-                    Margin='0,0,12,0' VerticalAlignment='Center'
-                    BorderBrush='#30FFFFFF' BorderThickness='1'/>
-            <StackPanel Grid.Column='1' VerticalAlignment='Center'>
-                <TextBlock Text='" XmlEsc(hex) "' FontSize='14' Foreground='#EEFFFFFF'
-                           FontFamily='Cascadia Mono'/>
-                <TextBlock Text='Enter to copy hex' FontSize='10'
-                           Foreground='#55FFFFFF' Margin='0,1,0,0'/>
+            Background='" bg "' CornerRadius='10' Padding='10,7'
+            BorderBrush='" bd "' BorderThickness='" bw "'>
+        <Grid ColumnDefinitions='Auto,*,Auto'>
+            <Border Width='32' Height='32' CornerRadius='8'
+                    Background='" ibg "' Margin='0,0,12,0'
+                    VerticalAlignment='Center'>
+                <SymbolIcon Symbol='Calculator' Foreground='" AC_GREEN "'/>
+            </Border>
+            <StackPanel Grid.Column='1' VerticalAlignment='Center' Spacing='1'>
+                <TextBlock Text='" XmlEsc(Trunc(expr, 30)) "' FontSize='13'
+                           Foreground='#E6EDF3'/>
+                <TextBlock Text='Enter to copy result' FontSize='11'
+                           Foreground='#8B949E'/>
             </StackPanel>
+            <TextBlock Grid.Column='2' Text='= " XmlEsc(String(result)) "'
+                       FontSize='24' FontWeight='Bold' Foreground='" AC_GREEN "'
+                       FontFamily='Cascadia Mono' VerticalAlignment='Center'
+                       Margin='14,0,4,0'/>
         </Grid>
     </Border>
+    )")
+}
+
+; Color swatch card
+BuildColorCard(hex, isSel := false) {
+    bg := isSel ? "#12FFFFFF" : "Transparent"
+    bd := isSel ? hex : "Transparent"
+    bw := isSel ? "1" : "0"
+    return XR.Load("
+    (
+    <Border xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+            Background='" bg "' CornerRadius='10' Padding='10,7'
+            BorderBrush='" bd "' BorderThickness='" bw "'>
+        <Grid ColumnDefinitions='Auto,*,Auto'>
+            <Border Width='32' Height='32' CornerRadius='8' Background='" hex "'
+                    Margin='0,0,12,0' VerticalAlignment='Center'
+                    BorderBrush='#20FFFFFF' BorderThickness='1'/>
+            <StackPanel Grid.Column='1' VerticalAlignment='Center' Spacing='1'>
+                <TextBlock Text='" XmlEsc(hex) "' FontSize='14'
+                           Foreground='#E6EDF3' FontFamily='Cascadia Mono'/>
+                <TextBlock Text='Enter to copy hex code' FontSize='11'
+                           Foreground='#8B949E'/>
+            </StackPanel>
+            <Border Grid.Column='2' Background='#12FFFFFF' CornerRadius='5'
+                    Padding='6,3' VerticalAlignment='Center'
+                    Visibility='" (isSel ? "Visible" : "Collapsed") "'>
+                <TextBlock Text='⏎' FontSize='11' Foreground='#8B949E'/>
+            </Border>
+        </Grid>
+    </Border>
+    )")
+}
+
+; Section divider
+BuildDivider(label) {
+    return XR.Load("
+    (
+    <TextBlock xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'
+               Text='" XmlEsc(label) "' FontSize='10' FontWeight='SemiBold'
+               Foreground='#484F58' Margin='8,6,0,2'/>
     )")
 }
 
@@ -328,86 +430,87 @@ BuildColorCard(hex, isSel := false) {
 FilterResults(query) {
     results := []
 
+    ; --- Empty: show category hints ---
     if query = "" {
-        results.Push({name: "Applications", desc: "Search installed apps", icon: "AllApps", color: C_BLUE, type: "hint", prefix: ""})
-        results.Push({name: "Calculator", desc: "Type a math expression (2+2, 15*3.5)", icon: "Calculator", color: C_GREEN, type: "hint", prefix: ""})
-        results.Push({name: "Window Switcher", desc: "Type > to list open windows", icon: "SwitchApps", color: C_ORANGE, type: "hint", prefix: ">"})
-        results.Push({name: "Clipboard History", desc: "Type @ to browse clipboard", icon: "Paste", color: C_PURPLE, type: "hint", prefix: "@"})
-        results.Push({name: "System Commands", desc: "lock, sleep, shutdown, restart...", icon: "Setting", color: C_RED, type: "hint", prefix: ""})
-        results.Push({name: "Web Search", desc: "Type ? followed by your query", icon: "Globe", color: C_BLUE, type: "hint", prefix: "?"})
+        results.Push({name: "Applications",    desc: "Search installed programs",       icon: "AllApps",    color: AC_BLUE,   type: "hint", prefix: ""})
+        results.Push({name: "Calculator",      desc: "Type any math expression",        icon: "Calculator", color: AC_GREEN,  type: "hint", prefix: ""})
+        results.Push({name: "Window Switcher", desc: "Prefix with > to list windows",   icon: "SwitchApps", color: AC_ORANGE, type: "hint", prefix: ">"})
+        results.Push({name: "Clipboard",       desc: "Prefix with @ for clipboard",     icon: "Paste",      color: AC_PURPLE, type: "hint", prefix: "@"})
+        results.Push({name: "System Commands", desc: "lock, sleep, shutdown, restart",   icon: "Setting",    color: AC_RED,    type: "hint", prefix: ""})
+        results.Push({name: "Web Search",      desc: "Prefix with ? to search the web", icon: "Globe",      color: AC_CYAN,   type: "hint", prefix: "?"})
         return results
     }
 
-    prefix := SubStr(query, 1, 1)
+    pf := SubStr(query, 1, 1)
 
-    ; --- Window mode ---
-    if prefix = ">" {
+    ; --- > Window mode ---
+    if pf = ">" {
         wq := Trim(SubStr(query, 2))
         for w in GetOpenWindows() {
             if wq = "" || FuzzyScore(wq, w.title) > 0
-                results.Push({name: w.title, desc: "Window — " w.class, icon: "SwitchApps",
-                              color: C_ORANGE, type: "window", hwnd: w.hwnd})
+                results.Push({name: w.title, desc: w.class, icon: "SwitchApps",
+                              color: AC_ORANGE, type: "window", hwnd: w.hwnd})
             if results.Length >= MAX_RESULTS
                 break
         }
-        if results.Length = 0
-            results.Push({name: "No windows found", desc: "Try a different query", icon: "SwitchApps", color: "#555555", type: "none"})
+        if !results.Length
+            results.Push({name: "No windows match", desc: "Try different terms",
+                          icon: "SwitchApps", color: TX_TERTIA, type: "none"})
         return results
     }
 
-    ; --- Clipboard mode ---
-    if prefix = "@" {
+    ; --- @ Clipboard mode ---
+    if pf = "@" {
         cq := Trim(SubStr(query, 2))
         for i, text in clipHistory {
-            preview := RegExReplace(text, "[\r\n\t]+", " ")
-            if cq = "" || FuzzyScore(cq, preview) > 0
-                results.Push({name: Truncate(preview, 55), desc: "Clip #" i " — Enter to paste",
-                              icon: "Paste", color: C_PURPLE, type: "clipboard", clipText: text})
+            p := RegExReplace(text, "[\r\n\t]+", " ")
+            if cq = "" || FuzzyScore(cq, p) > 0
+                results.Push({name: Trunc(p, 52), desc: "#" i " — enter to paste",
+                              icon: "Paste", color: AC_PURPLE, type: "clipboard",
+                              clipText: text})
             if results.Length >= MAX_RESULTS
                 break
         }
-        if results.Length = 0
-            results.Push({name: "No clipboard history", desc: "Copy text to see it here", icon: "Paste", color: "#555555", type: "none"})
+        if !results.Length
+            results.Push({name: "Clipboard empty", desc: "Copy text to see it here",
+                          icon: "Paste", color: TX_TERTIA, type: "none"})
         return results
     }
 
-    ; --- Web search mode ---
-    if prefix = "?" {
+    ; --- ? Web search ---
+    if pf = "?" {
         wq := Trim(SubStr(query, 2))
         if wq
-            results.Push({name: "Search: " wq, desc: "Open in default browser",
-                          icon: "Globe", color: C_BLUE, type: "websearch", query: wq})
+            results.Push({name: wq, desc: "Search the web", icon: "Globe",
+                          color: AC_CYAN, type: "websearch", query: wq})
         return results
     }
 
-    ; --- Auto-detect ---
-
-    ; Math?
+    ; --- Auto-detect: calculator ---
     if IsMathExpr(query) {
         mr := EvalMath(query)
         if mr != ""
             results.Push({name: query " = " mr, desc: "Calculator", icon: "Calculator",
-                          color: C_GREEN, type: "calc", result: mr})
+                          color: AC_GREEN, type: "calc", result: mr})
     }
 
-    ; Hex color?
+    ; --- Hex color ---
     if IsHexColor(query)
-        results.Push({name: query, desc: "Color preview", icon: "FontColor",
+        results.Push({name: query, desc: "Color", icon: "FontColor",
                       color: query, type: "color", hex: query})
 
-    ; URL?
+    ; --- URL ---
     if IsURL(query)
-        results.Push({name: query, desc: "Open URL in browser", icon: "Globe",
-                      color: C_BLUE, type: "url", url: query})
+        results.Push({name: query, desc: "Open in browser", icon: "Globe",
+                      color: AC_CYAN, type: "url", url: query})
 
-    ; Apps (fuzzy scored + sorted)
+    ; --- Apps (fuzzy sorted) ---
     scored := []
     for app in appCache {
         s := FuzzyScore(query, app.name)
         if s > 0
             scored.Push({app: app, score: s})
     }
-    ; Sort descending
     loop scored.Length - 1 {
         i := A_Index
         loop scored.Length - i {
@@ -421,10 +524,10 @@ FilterResults(query) {
         if results.Length >= MAX_RESULTS
             break
         results.Push({name: s.app.name, desc: "Application", icon: "AllApps",
-                      color: C_BLUE, type: "app", path: s.app.path})
+                      color: AC_BLUE, type: "app", path: s.app.path})
     }
 
-    ; System commands
+    ; --- System commands ---
     for cmd in sysCommands {
         if results.Length >= MAX_RESULTS
             break
@@ -433,85 +536,88 @@ FilterResults(query) {
                           color: cmd.color, type: "command", action: cmd.action})
     }
 
-    ; Windows
+    ; --- Open windows ---
     for w in GetOpenWindows() {
         if results.Length >= MAX_RESULTS
             break
         if FuzzyScore(query, w.title) > 0
-            results.Push({name: w.title, desc: "Window — " w.class, icon: "SwitchApps",
-                          color: C_ORANGE, type: "window", hwnd: w.hwnd})
+            results.Push({name: w.title, desc: w.class, icon: "SwitchApps",
+                          color: AC_ORANGE, type: "window", hwnd: w.hwnd})
     }
 
-    ; Fallback: web search
-    if results.Length = 0
-        results.Push({name: "Search web: " query, desc: "Open in default browser",
-                      icon: "Globe", color: C_BLUE, type: "websearch", query: query})
+    ; --- Fallback: web search ---
+    if !results.Length
+        results.Push({name: query, desc: "Search the web", icon: "Globe",
+                      color: AC_CYAN, type: "websearch", query: query})
 
     return results
 }
 
 ; ============================================================================
-; Display
+; Display Update
 ; ============================================================================
 
 UpdateDisplay() {
     global searchText, selectedIdx, currentResults, cursorOn
 
     try {
-        ; Search bar
+        ; --- Search text + cursor ---
         if searchText = "" {
-            nxGui['SearchText'].Text := cursorOn ? "|  Type to search..." : "   Type to search..."
-            nxGui['SearchText'].Foreground := MakeBrush("#44FFFFFF")
+            nxGui['SearchText'].Text := cursorOn ? "|  Search apps, commands, math..." : "   Search apps, commands, math..."
+            nxGui['SearchText'].Foreground := MakeBrush(TX_TERTIA)
         } else {
             nxGui['SearchText'].Text := searchText (cursorOn ? "|" : "")
-            nxGui['SearchText'].Foreground := MakeBrush("#FFFFFF")
+            nxGui['SearchText'].Foreground := MakeBrush(TX_PRIMARY)
         }
 
-        ; Mode tag
+        ; --- Mode tag ---
         p := SubStr(searchText, 1, 1)
+        showMode := true
         if p = ">" {
-            nxGui['ModeBox'].Visibility := 0
             nxGui['ModeTag'].Text := "WINDOWS"
+            nxGui['ModeBox'].Background := MakeBrush("#15" SubStr(AC_ORANGE, 2))
+            nxGui['ModeTag'].Foreground := MakeBrush(AC_ORANGE)
         } else if p = "@" {
-            nxGui['ModeBox'].Visibility := 0
             nxGui['ModeTag'].Text := "CLIPBOARD"
+            nxGui['ModeBox'].Background := MakeBrush("#15" SubStr(AC_PURPLE, 2))
+            nxGui['ModeTag'].Foreground := MakeBrush(AC_PURPLE)
         } else if p = "?" {
-            nxGui['ModeBox'].Visibility := 0
             nxGui['ModeTag'].Text := "WEB"
+            nxGui['ModeBox'].Background := MakeBrush("#15" SubStr(AC_CYAN, 2))
+            nxGui['ModeTag'].Foreground := MakeBrush(AC_CYAN)
         } else if searchText != "" && IsMathExpr(searchText) {
-            nxGui['ModeBox'].Visibility := 0
             nxGui['ModeTag'].Text := "CALC"
+            nxGui['ModeBox'].Background := MakeBrush("#15" SubStr(AC_GREEN, 2))
+            nxGui['ModeTag'].Foreground := MakeBrush(AC_GREEN)
         } else {
-            nxGui['ModeBox'].Visibility := 1  ; Collapsed
+            showMode := false
         }
+        nxGui['ModeBox'].Visibility := showMode ? 0 : 1
 
-        ; Filter
+        ; --- Filter results ---
         currentResults := FilterResults(searchText)
-
-        ; Clamp selection
         if selectedIdx >= currentResults.Length
             selectedIdx := Max(0, currentResults.Length - 1)
 
-        ; Rebuild cards
+        ; --- Rebuild result cards ---
         rl := nxGui['ResultsList']
         rl.Children.Clear()
 
         for i, r in currentResults {
-            isSel := (i - 1) = selectedIdx
-            card := ""
+            sel := (i - 1) = selectedIdx
 
             if r.type = "calc" && r.HasProp("result")
-                card := BuildCalcCard(searchText, r.result, isSel)
+                rl.Children.Append(BuildCalcCard(searchText, r.result, sel))
             else if r.type = "color" && r.HasProp("hex")
-                card := BuildColorCard(r.hex, isSel)
+                rl.Children.Append(BuildColorCard(r.hex, sel))
             else
-                card := BuildCard(r.icon, r.name, r.desc, r.color, isSel)
-
-            rl.Children.Append(card)
+                rl.Children.Append(BuildCard(r.icon, r.name, r.desc, r.color, sel))
         }
 
-        ; Count
-        nxGui['ResultCount'].Text := searchText != "" ? String(currentResults.Length) " results" : ""
+        ; --- Result count ---
+        nxGui['ResultCount'].Text := searchText != ""
+            ? String(currentResults.Length) " result" (currentResults.Length != 1 ? "s" : "")
+            : ""
     }
 }
 
@@ -531,20 +637,18 @@ ShowNexus() {
     selectedIdx := 0
     nexusVisible := true
 
-    ; Center on primary monitor, upper third
+    ; Position: centered horizontally, upper-third vertically
     MonitorGetWorkArea(1, &mL, &mT, &mR, &mB)
-    ww := 560, wh := 460
-    wx := mL + (mR - mL - ww) // 2
-    wy := mT + (mB - mT) // 4
-
-    nxGui.Show("x" wx " y" wy " w" ww " h" wh " NoActivate")
+    ww := 540, wh := 480
+    nxGui.Show("x" (mL + (mR - mL - ww) // 2)
+             " y" (mT + (mB - mT) // 4)
+             " w" ww " h" wh " NoActivate")
     WinActivate("ahk_id " nxGui.hwnd)
     UpdateDisplay()
 
     SetTimer(BlinkCursor, 530)
     SetTimer(CheckFocus, 200)
 
-    ; InputHook captures keyboard while palette is open
     ih := InputHook("V")
     ih.OnChar := OnNxChar
     ih.KeyOpt("{All}", "N")
@@ -554,12 +658,10 @@ ShowNexus() {
 
 HideNexus() {
     global nexusVisible, ih
-
     nexusVisible := false
-    if IsObject(ih) {
+    if IsObject(ih)
         ih.Stop()
         ih := ""
-    }
     SetTimer(BlinkCursor, 0)
     SetTimer(CheckFocus, 0)
     nxGui.Hide()
@@ -580,7 +682,7 @@ OnNxKeyDown(ih, vk, sc) {
     global searchText, selectedIdx, currentResults
 
     switch vk {
-        case 8:  ; Backspace
+        case 8:   ; Backspace
             if searchText != "" {
                 searchText := SubStr(searchText, 1, -1)
                 selectedIdx := 0
@@ -604,26 +706,25 @@ OnNxKeyDown(ih, vk, sc) {
             UpdateDisplay()
         case 13:  ; Enter
             ExecuteSelected()
-        case 9:   ; Tab — cycle mode
+        case 9:   ; Tab
             CycleMode()
     }
 }
 
 BlinkCursor() {
-    global cursorOn, nexusVisible
+    global cursorOn
     if !nexusVisible
         return
     cursorOn := !cursorOn
     try {
         if searchText = ""
-            nxGui['SearchText'].Text := cursorOn ? "|  Type to search..." : "   Type to search..."
+            nxGui['SearchText'].Text := cursorOn ? "|  Search apps, commands, math..." : "   Search apps, commands, math..."
         else
             nxGui['SearchText'].Text := searchText (cursorOn ? "|" : "")
     }
 }
 
 CheckFocus() {
-    global nexusVisible
     if nexusVisible && !WinActive("ahk_id " nxGui.hwnd)
         HideNexus()
 }
@@ -631,17 +732,13 @@ CheckFocus() {
 CycleMode() {
     global searchText, selectedIdx
     modes := [">", "@", "?", ""]
-    current := SubStr(searchText, 1, 1)
+    cur := SubStr(searchText, 1, 1)
     idx := 0
-    for i, m in modes {
-        if m = current {
+    for i, m in modes
+        if m = cur
             idx := i
-            break
-        }
-    }
-    nextIdx := Mod(idx, modes.Length) + 1
-    body := (current = ">" || current = "@" || current = "?") ? SubStr(searchText, 2) : searchText
-    searchText := modes[nextIdx] body
+    body := (cur = ">" || cur = "@" || cur = "?") ? SubStr(searchText, 2) : searchText
+    searchText := modes[Mod(idx, modes.Length) + 1] body
     selectedIdx := 0
     UpdateDisplay()
 }
@@ -655,7 +752,6 @@ ExecuteSelected() {
 
     if selectedIdx < 0 || selectedIdx >= currentResults.Length
         return
-
     r := currentResults[selectedIdx + 1]
 
     switch r.type {
@@ -664,10 +760,8 @@ ExecuteSelected() {
             try Run(r.path)
         case "window":
             HideNexus()
-            try {
-                WinActivate("ahk_id " r.hwnd)
-                WinRestore("ahk_id " r.hwnd)
-            }
+            try WinActivate("ahk_id " r.hwnd)
+            try WinRestore("ahk_id " r.hwnd)
         case "command":
             HideNexus()
             RunSysCmd(r.action)
@@ -697,28 +791,19 @@ ExecuteSelected() {
     }
 }
 
-RunSysCmd(action) {
-    switch action {
-        case "lock":
-            DllCall("LockWorkStation")
-        case "sleep":
-            DllCall("PowrProf\SetSuspendState", "Int", 0, "Int", 0, "Int", 0)
-        case "shutdown":
-            Shutdown(1)
-        case "restart":
-            Shutdown(2)
-        case "recycle":
-            DllCall("Shell32\SHEmptyRecycleBin", "Ptr", 0, "Ptr", 0, "UInt", 0x7)
-        case "screenshot":
-            Send("#{PrintScreen}")
-        case "settings":
-            Run("ms-settings:")
-        case "taskmgr":
-            Run("taskmgr")
-        case "explorer":
-            Run("explorer.exe")
-        case "notepad":
-            Run("notepad")
+RunSysCmd(a) {
+    switch a {
+        case "lock":       DllCall("LockWorkStation")
+        case "sleep":      DllCall("PowrProf\SetSuspendState", "Int", 0, "Int", 0, "Int", 0)
+        case "shutdown":   Shutdown(1)
+        case "restart":    Shutdown(2)
+        case "recycle":    DllCall("Shell32\SHEmptyRecycleBin", "Ptr", 0, "Ptr", 0, "UInt", 0x7)
+        case "screenshot": Send("#{PrintScreen}")
+        case "settings":   Run("ms-settings:")
+        case "taskmgr":    Run("taskmgr")
+        case "explorer":   Run("explorer.exe")
+        case "notepad":    Run("notepad")
+        case "run":        Send("#r")
     }
 }
 
@@ -732,29 +817,23 @@ OnClipChanged(dataType) {
         return
     global clipHistory
     text := A_Clipboard
-    if !text || StrLen(text) = 0
+    if !text || !StrLen(text)
         return
-    ; Remove duplicate
-    loop clipHistory.Length {
+    loop clipHistory.Length
         if clipHistory[A_Index] = text {
             clipHistory.RemoveAt(A_Index)
             break
         }
-    }
     clipHistory.InsertAt(1, text)
     if clipHistory.Length > MAX_CLIP
         clipHistory.Pop()
 }
 
 ; ============================================================================
-; Startup
+; Boot
 ; ============================================================================
 
-; Index Start Menu apps
 appCache := ScanStartMenu()
-
-; Prevent close from killing script
 nxGui.OnEvent("Close", (*) => HideNexus())
 
-; Global hotkey
-!Space:: ShowNexus()
+^Space:: ShowNexus()
